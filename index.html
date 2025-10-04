@@ -86,6 +86,7 @@
             background: rgba(255, 0, 0, 0.5);
             border: 2px solid red;
             cursor: move;
+            z-index: 1000;
         }
         .reset-camera {
             position: absolute;
@@ -149,7 +150,7 @@
     </div>
 
     <!-- Область управления камерой -->
-    <div class="camera-control" id="cameraControl"></div>
+    <div class="camera-control" id="cameraControl" title="Зажми для управления камерой"></div>
     <button class="reset-camera" onclick="resetCamera()">🔄 Сброс камеры</button>
     
     <script>
@@ -171,11 +172,13 @@
         function createScene() {
             const scene = new BABYLON.Scene(engine);
             
-            // Камера для 2D вида
+            // Камера для 2D вида - ОТКЛЮЧАЕМ СТАНДАРТНОЕ УПРАВЛЕНИЕ
             camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 15, 
                 new BABYLON.Vector3(0, 0, 0), scene);
-            camera.attachControl(canvas, true);
-            camera.inputs.attached.pointers.angularSensibility = 100000;
+            
+            // ОТКЛЮЧАЕМ все стандартные управления камерой
+            camera.inputs.clear();
+            camera.detachControl();
             
             // Сохраняем начальную позицию камеры
             initialCameraPosition = camera.position.clone();
@@ -188,17 +191,17 @@
             
             // Создаем начальные точки
             pointP1 = new BABYLON.Vector3(-3, 0, 0);
-            pointP2 = new BABYLON.Vector3(3, 0, 0); // P2 вычисляется из P1 + направление
+            pointP2 = new BABYLON.Vector3(3, 0, 0);
             pointM = new BABYLON.Vector3(1, 2, 0);
             
-            // Настраиваем управление камерой
+            // Настраиваем управление камерой через область 20x20
             setupCameraControl();
             
             // Создаем визуализацию
             createVisualization(scene);
             
             // Настраиваем перетаскивание точек
-            setupDragAndDrop(scene, camera);
+            setupDragAndDrop(scene);
             
             return scene;
         }
@@ -210,7 +213,9 @@
                 isCameraDragging = true;
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
+                cameraControl.style.background = 'rgba(255, 0, 0, 0.8)'; // Подсветка при активном перетаскивании
                 e.preventDefault();
+                e.stopPropagation();
             });
             
             document.addEventListener('mousemove', function(e) {
@@ -231,8 +236,14 @@
             });
             
             document.addEventListener('mouseup', function() {
-                isCameraDragging = false;
+                if (isCameraDragging) {
+                    isCameraDragging = false;
+                    cameraControl.style.background = 'rgba(255, 0, 0, 0.5)'; // Возвращаем обычный цвет
+                }
             });
+            
+            // Запрещаем события мыши для canvas (чтобы не мешало перетаскиванию точек)
+            canvas.style.pointerEvents = 'auto';
         }
         
         function resetCamera() {
@@ -251,7 +262,6 @@
             const dir_z = parseFloat(document.getElementById('dir_z').value);
             
             pointP1 = new BABYLON.Vector3(p1_x, p1_y, p1_z);
-            // P2 = P1 + направление * 6 (для визуализации)
             pointP2 = new BABYLON.Vector3(
                 p1_x + dir_x * 6,
                 p1_y + dir_y * 6, 
@@ -273,13 +283,9 @@
         }
         
         function dropPerpendicular() {
-            // Находим ближайшую точку на луче
             const closestPoint = findClosestPointOnRay(pointM, pointP1, pointP2);
-            
-            // Перемещаем точку M к основанию перпендикуляра
             pointM.copyFrom(closestPoint);
             
-            // Обновляем поле ввода
             document.getElementById('m_x').value = pointM.x.toFixed(1);
             document.getElementById('m_y').value = pointM.y.toFixed(1);
             document.getElementById('m_z').value = pointM.z.toFixed(1);
@@ -300,17 +306,14 @@
         }
         
         function createVisualization(scene) {
-            // Удаляем старые объекты если есть
             if (rayLine) rayLine.dispose();
             if (distanceLine) distanceLine.dispose();
             if (closestPointMesh) closestPointMesh.dispose();
             if (directionCone) directionCone.dispose();
             
-            // Вычисляем расстояние
             const distance = distanceToRay2D(pointM, pointP1, pointP2);
             document.getElementById('distanceValue').textContent = distance.toFixed(2);
             
-            // Создаем или обновляем точку M (зеленая)
             if (!pointMMesh) {
                 pointMMesh = BABYLON.MeshBuilder.CreateSphere("pointM", { diameter: 0.3 }, scene);
                 const greenMat = new BABYLON.StandardMaterial("greenMat", scene);
@@ -319,7 +322,6 @@
             }
             pointMMesh.position = pointM.clone();
             
-            // Создаем или обновляем точку P1 (синяя)
             if (!pointP1Mesh) {
                 pointP1Mesh = BABYLON.MeshBuilder.CreateSphere("pointP1", { diameter: 0.3 }, scene);
                 const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
@@ -328,14 +330,12 @@
             }
             pointP1Mesh.position = pointP1.clone();
             
-            // Создаем или обновляем точку P2 (синяя)
             if (!pointP2Mesh) {
                 pointP2Mesh = BABYLON.MeshBuilder.CreateSphere("pointP2", { diameter: 0.3 }, scene);
                 pointP2Mesh.material = pointP1Mesh.material;
             }
             pointP2Mesh.position = pointP2.clone();
             
-            // Создаем луч (красная линия от P1 через P2)
             const rayPoints = [
                 pointP1,
                 pointP2,
@@ -348,23 +348,19 @@
             rayLine = BABYLON.MeshBuilder.CreateLines("ray", { points: rayPoints }, scene);
             rayLine.color = new BABYLON.Color3(1, 0, 0);
             
-            // Вычисляем ближайшую точку на луче
             const closestPoint = findClosestPointOnRay(pointM, pointP1, pointP2);
             
-            // Линия расстояния (желтая)
             distanceLine = BABYLON.MeshBuilder.CreateLines("distanceLine", {
                 points: [pointM, closestPoint]
             }, scene);
             distanceLine.color = new BABYLON.Color3(1, 1, 0);
             
-            // Ближайшая точка (желтая)
             closestPointMesh = BABYLON.MeshBuilder.CreateSphere("closest", { diameter: 0.2 }, scene);
             closestPointMesh.position = closestPoint;
             const yellowMat = new BABYLON.StandardMaterial("yellowMat", scene);
             yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
             closestPointMesh.material = yellowMat;
             
-            // Создаем конус направления
             createDirectionCone(scene);
         }
         
@@ -385,7 +381,6 @@
                 pointP2.z + direction.z * coneOffset
             );
             
-            // Вычисляем поворот для 3D
             const angle = Math.atan2(direction.y, direction.x);
             directionCone.rotation.y = angle + Math.PI / 2;
             
@@ -394,7 +389,7 @@
             directionCone.material = purpleMat;
         }
         
-        function setupDragAndDrop(scene, camera) {
+        function setupDragAndDrop(scene) {
             scene.onPointerDown = function(evt, pickResult) {
                 if (pickResult.hit) {
                     const mesh = pickResult.pickedMesh;
@@ -413,7 +408,6 @@
                         
                         if (draggedMesh === pointMMesh) {
                             pointM.copyFrom(newPosition);
-                            // Обновляем поля ввода
                             document.getElementById('m_x').value = pointM.x.toFixed(1);
                             document.getElementById('m_y').value = pointM.y.toFixed(1);
                             document.getElementById('m_z').value = pointM.z.toFixed(1);
@@ -424,7 +418,6 @@
                             document.getElementById('p1_z').value = pointP1.z.toFixed(1);
                         } else if (draggedMesh === pointP2Mesh) {
                             pointP2.copyFrom(newPosition);
-                            // Обновляем направление
                             const direction = pointP2.subtract(pointP1).normalize();
                             document.getElementById('dir_x').value = direction.x.toFixed(1);
                             document.getElementById('dir_y').value = direction.y.toFixed(1);
@@ -443,7 +436,6 @@
             };
         }
         
-        // 2D алгоритм расстояния от точки до луча (работает и в 3D)
         function distanceToRay2D(M, P1, P2) {
             const P1P2 = P2.subtract(P1);
             const P1M = M.subtract(P1);
@@ -485,7 +477,6 @@
             engine.resize();
         });
         
-        // Инициализация полей ввода
         updateInfoPanel();
     </script>
 </body>
