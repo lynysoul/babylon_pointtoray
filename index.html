@@ -162,11 +162,11 @@
             );
             
             // Вычисляем угол поворота конуса
-            const angle = Math.atan2(direction.x, direction.y);
+            const angle = Math.atan2(direction.y, direction.x);
             
             // Поворачиваем конус в направлении луча
             // В 2D пространстве поворачиваем вокруг оси Z
-            directionCone.rotation.z = angle + Math.PI / 2; // +90 градусов чтобы конус смотрел острием вперед
+            directionCone.rotation.x = angle + Math.PI / 2; // +90 градусов чтобы конус смотрел острием вперед
             
             // Фиолетовый материал для конуса
             const purpleMat = new BABYLON.StandardMaterial("purpleMat", scene);
@@ -276,5 +276,6 @@
     </script>
 </body>
 </html>
+
 
 
