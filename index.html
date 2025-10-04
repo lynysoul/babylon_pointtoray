@@ -170,17 +170,7 @@
         }
         
         // Функция для добавления текста (упрощённо)
-        function addText(scene, text, x, y) {
-            // В реальном проекте лучше использовать BABYLON.GUI
-            const plane = BABYLON.MeshBuilder.CreatePlane("text_" + text, { size: 0.5 }, scene);
-            plane.position = new BABYLON.Vector3(x, y, 0);
-        }
-        
-        const scene = createScene();
-        
-        engine.runRenderLoop(() => {
-            scene.render();
-        });
+      
         
         window.addEventListener("resize", () => {
             engine.resize();
@@ -188,3 +178,4 @@
     </script>
 </body>
 </html>
+
