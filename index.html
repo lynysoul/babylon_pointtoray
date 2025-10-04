@@ -10,7 +10,6 @@
             height: 100%;
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
         }
         #renderCanvas {
             width: 100%;
@@ -21,394 +20,170 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(255,255,255,0.95);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            min-width: 200px;
-        }
-        #controls {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(255,255,255,0.95);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            min-width: 250px;
-        }
-        .control-group {
-            margin: 10px 0;
+            background: rgba(255,255,255,0.8);
             padding: 10px;
-            border: 1px solid #ddd;
             border-radius: 5px;
-        }
-        .control-group h4 {
-            margin: 0 0 10px 0;
-            color: #333;
-        }
-        .slider-container {
-            margin: 8px 0;
-        }
-        .slider-container label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 14px;
-            color: #555;
-        }
-        input[type="range"] {
-            width: 100%;
-            margin: 5px 0;
-        }
-        .value-display {
-            font-size: 12px;
-            color: #666;
-            text-align: center;
-            margin-top: 5px;
-        }
-        button {
-            padding: 8px 15px;
-            margin: 5px;
-            cursor: pointer;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: #f5f5f5;
-        }
-        button:hover {
-            background: #e5e5e5;
         }
     </style>
 </head>
 <body>
     <canvas id="renderCanvas"></canvas>
-    
-    <div id="info">
-        <h3>Расстояние от точки до луча</h3>
-        <p>Расстояние: <span id="distanceValue">0</span></p>
-        <p>Точка M: (<span id="pointM">2, 3</span>)</p>
-        <p>Луч: P₁(<span id="pointP1">-3, 0</span>) → P₂(<span id="pointP2">3, 0</span>)</p>
-        <p>Положение на прямой: <span id="linePosition">0</span></p>
-    </div>
-    
-    <div id="controls">
-        <h3>Управление лучом и точкой</h3>
-        
-        <div class="control-group">
-            <h4>Положение начала луча на прямой</h4>
-            <div class="slider-container">
-                <label>Смещение P₁ по X:</label>
-                <input type="range" id="p1XSlider" min="-5" max="5" step="0.1" value="-3">
-                <div class="value-display" id="p1XValue">-3.0</div>
-            </div>
-            <div class="slider-container">
-                <label>Смещение P₁ по Y:</label>
-                <input type="range" id="p1YSlider" min="-3" max="3" step="0.1" value="0">
-                <div class="value-display" id="p1YValue">0.0</div>
-            </div>
-        </div>
-        
-        <div class="control-group">
-            <h4>Направление луча</h4>
-            <div class="slider-container">
-                <label>Угол луча (градусы):</label>
-                <input type="range" id="rayAngleSlider" min="0" max="360" step="1" value="0">
-                <div class="value-display" id="rayAngleValue">0°</div>
-            </div>
-        </div>
-        
-        <div class="control-group">
-            <h4>Положение точки M</h4>
-            <div class="slider-container">
-                <label>Координата X точки M:</label>
-                <input type="range" id="pointMXSlider" min="-5" max="5" step="0.1" value="1">
-                <div class="value-display" id="pointMXValue">1.0</div>
-            </div>
-            <div class="slider-container">
-                <label>Координата Y точки M:</label>
-                <input type="range" id="pointMYSlider" min="-5" max="5" step="0.1" value="2">
-                <div class="value-display" id="pointMYValue">2.0</div>
-            </div>
-        </div>
-        
-        <div class="control-group">
-            <h4>Быстрые действия</h4>
-            <button onclick="resetToDefault()">Сброс к начальным значениям</button>
-            <button onclick="randomizePoints()">Случайные позиции</button>
-        </div>
-    </div>
+    <div id="info">Расстояние: <span id="distanceValue">0</span></div>
     
     <script>
-        // Глобальные переменные
-        let pointM, pointP1, pointP2, scene;
-        let rayLine, distanceLine, closestPointMesh;
-        let pointMMesh, pointP1Mesh, pointP2Mesh;
-
-        function init() {
-            const canvas = document.getElementById("renderCanvas");
-            const engine = new BABYLON.Engine(canvas, true);
-            
-            scene = createScene(engine);
-            setupEventListeners();
-            updateVisualization();
-            
-            engine.runRenderLoop(() => {
-                scene.render();
-            });
-            
-            window.addEventListener("resize", () => {
-                engine.resize();
-            });
-        }
-
-        function createScene(engine) {
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+        
+        function createScene() {
             const scene = new BABYLON.Scene(engine);
             
-            // Камера для 2D вида
+            // Камера для 2D вида (смотрим сверху на плоскость XY)
             const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 15, 
                 new BABYLON.Vector3(0, 0, 0), scene);
             camera.attachControl(canvas, true);
+            
+            // Фиксируем камеру для 2D (опционально)
             camera.inputs.attached.pointers.angularSensibility = 100000;
             
             // Свет
             new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 0, -1), scene);
             
-            // Создаем меши (объекты будут обновляться)
-            createMeshes(scene);
+            // Создаем 2D визуализацию
+            create2DDistanceVisualization(scene);
             
             return scene;
         }
-
-        function createMeshes(scene) {
-            // Создаем меши один раз, потом будем обновлять их позиции
-            
-            // Точка M (зеленая)
-            pointMMesh = BABYLON.MeshBuilder.CreateSphere("pointM", { diameter: 0.2 }, scene);
-            const greenMat = new BABYLON.StandardMaterial("greenMat", scene);
-            greenMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
-            pointMMesh.material = greenMat;
-            
-            // Точка P1 (синяя)
-            pointP1Mesh = BABYLON.MeshBuilder.CreateSphere("pointP1", { diameter: 0.2 }, scene);
-            const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
-            blueMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
-            pointP1Mesh.material = blueMat;
-            
-            // Точка P2 (синяя)
-            pointP2Mesh = BABYLON.MeshBuilder.CreateSphere("pointP2", { diameter: 0.2 }, scene);
-            pointP2Mesh.material = blueMat;
-            
-            // Луч и линия расстояния будут создаваться в updateVisualization
-        }
-
-        function setupEventListeners() {
-            // Слайдеры для точки P1
-            document.getElementById('p1XSlider').addEventListener('input', function(e) {
-                document.getElementById('p1XValue').textContent = e.target.value;
-                updateFromSliders();
-            });
-            
-            document.getElementById('p1YSlider').addEventListener('input', function(e) {
-                document.getElementById('p1YValue').textContent = e.target.value;
-                updateFromSliders();
-            });
-            
-            // Слайдер для угла луча
-            document.getElementById('rayAngleSlider').addEventListener('input', function(e) {
-                document.getElementById('rayAngleValue').textContent = e.target.value + '°';
-                updateFromSliders();
-            });
-            
-            // Слайдеры для точки M
-            document.getElementById('pointMXSlider').addEventListener('input', function(e) {
-                document.getElementById('pointMXValue').textContent = e.target.value;
-                updateFromSliders();
-            });
-            
-            document.getElementById('pointMYSlider').addEventListener('input', function(e) {
-                document.getElementById('pointMYValue').textContent = e.target.value;
-                updateFromSliders();
-            });
-        }
-
-        function updateFromSliders() {
-            // Обновляем позиции из значений слайдеров
-            
-            // Точка P1
-            pointP1 = new BABYLON.Vector3(
-                parseFloat(document.getElementById('p1XSlider').value),
-                parseFloat(document.getElementById('p1YSlider').value),
-                0
-            );
-            
-            // Точка M
-            pointM = new BABYLON.Vector3(
-                parseFloat(document.getElementById('pointMXSlider').value),
-                parseFloat(document.getElementById('pointMYSlider').value),
-                0
-            );
-            
-            // Направление луча из угла
-            const angle = parseFloat(document.getElementById('rayAngleSlider').value) * Math.PI / 180;
-            const rayLength = 6;
-            pointP2 = new BABYLON.Vector3(
-                pointP1.x + Math.cos(angle) * rayLength,
-                pointP1.y + Math.sin(angle) * rayLength,
-                0
-            );
-            
-            updateVisualization();
-        }
-
-        function updateVisualization() {
-            // Удаляем старые линии если есть
-            if (rayLine) rayLine.dispose();
-            if (distanceLine) distanceLine.dispose();
-            if (closestPointMesh) closestPointMesh.dispose();
-            
-            // Вычисляем расстояние
-            const distance = distanceToRay2D(pointM, pointP1, pointP2);
-            document.getElementById('distanceValue').textContent = distance.toFixed(2);
-            
-            // Обновляем отображение координат
-            document.getElementById('pointM').textContent = pointM.x.toFixed(1) + ', ' + pointM.y.toFixed(1);
-            document.getElementById('pointP1').textContent = pointP1.x.toFixed(1) + ', ' + pointP1.y.toFixed(1);
-            document.getElementById('pointP2').textContent = pointP2.x.toFixed(1) + ', ' + pointP2.y.toFixed(1);
-            
-            // Вычисляем положение на прямой
-            const linePosition = calculateLinePosition(pointM, pointP1, pointP2);
-            document.getElementById('linePosition').textContent = linePosition.toFixed(2);
-            
-            // Обновляем позиции мешей
-            pointMMesh.position = pointM.clone();
-            pointP1Mesh.position = pointP1.clone();
-            pointP2Mesh.position = pointP2.clone();
-            
-            // Создаем луч (красная линия от P1 через P2)
-            const rayPoints = [
-                pointP1,
-                pointP2,
-                new BABYLON.Vector3(
-                    pointP1.x + (pointP2.x - pointP1.x) * 1.5,
-                    pointP1.y + (pointP2.y - pointP1.y) * 1.5,
-                    0
-                )
-            ];
-            rayLine = BABYLON.MeshBuilder.CreateLines("ray", { points: rayPoints }, scene);
-            rayLine.color = new BABYLON.Color3(1, 0, 0);
-            
-            // Вычисляем ближайшую точку на луче
-            const closestPoint = findClosestPointOnRay(pointM, pointP1, pointP2);
-            
-            // Линия расстояния (желтая)
-            distanceLine = BABYLON.MeshBuilder.CreateLines("distanceLine", {
-                points: [pointM, closestPoint]
-            }, scene);
-            distanceLine.color = new BABYLON.Color3(1, 1, 0);
-            
-            // Ближайшая точка (желтая)
-            closestPointMesh = BABYLON.MeshBuilder.CreateSphere("closest", { diameter: 0.15 }, scene);
-            closestPointMesh.position = closestPoint;
-            const yellowMat = new BABYLON.StandardMaterial("yellowMat", scene);
-            yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
-            closestPointMesh.material = yellowMat;
-        }
-
-        // 2D алгоритм расстояния от точки до луча
+        
+        // 2D версия алгоритма (работает с Vector3 но в плоскости Z=0)
         function distanceToRay2D(M, P1, P2) {
+            // Вектор луча P1P2
             const P1P2_x = P2.x - P1.x;
             const P1P2_y = P2.y - P1.y;
             
+            // Вектор от P1 до M
             const P1M_x = M.x - P1.x;
             const P1M_y = M.y - P1.y;
             
+            // Скалярное произведение (P1M · P1P2)
             const dotProduct = P1M_x * P1P2_x + P1M_y * P1P2_y;
             
+            // Проверка по алгоритму со слайда
             if (dotProduct < 0) {
+                // Перпендикуляр не падает на луч - расстояние до начала луча
                 return Math.sqrt(P1M_x * P1M_x + P1M_y * P1M_y);
             } else {
+                // Перпендикуляр падает на луч
+                // Длина вектора P1P2 в квадрате
                 const P1P2_length_sq = P1P2_x * P1P2_x + P1P2_y * P1P2_y;
+                
+                // Параметр проекции
                 const t = dotProduct / P1P2_length_sq;
                 
+                // Точка проекции
                 const proj_x = P1.x + t * P1P2_x;
                 const proj_y = P1.y + t * P1P2_y;
                 
+                // Расстояние от M до точки проекции
                 const dx = M.x - proj_x;
                 const dy = M.y - proj_y;
                 return Math.sqrt(dx * dx + dy * dy);
             }
         }
-
-        // Находит ближайшую точку на луче
-        function findClosestPointOnRay(M, P1, P2) {
+        
+        function create2DDistanceVisualization(scene) {
+            // Точки как на слайде (все Z = 0)
+            const P1 = new BABYLON.Vector3(-3, 0, 0);  // Начало луча
+            const P2 = new BABYLON.Vector3(3, 0, 0);   // Направление луча
+            const M = new BABYLON.Vector3(1, 2, 0);    // Точка M
+            
+            // Вычисляем расстояние
+            const distance = distanceToRay2D(M, P1, P2);
+            document.getElementById('distanceValue').textContent = distance.toFixed(2);
+            
+            // Визуализация в 2D
+            
+            // 1. Луч (красная линия от P1 через P2)
+            const rayPoints = [
+                P1,
+                P2,
+                new BABYLON.Vector3(5, 0, 0) // Продолжение луча
+            ];
+            const rayLine = BABYLON.MeshBuilder.CreateLines("ray", { points: rayPoints }, scene);
+            rayLine.color = new BABYLON.Color3(1, 0, 0);
+            
+            // 2. Точка M (зеленая)
+            const pointM = BABYLON.MeshBuilder.CreateSphere("pointM", { diameter: 0.2 }, scene);
+            pointM.position = M;
+            const greenMat = new BABYLON.StandardMaterial("greenMat", scene);
+            greenMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
+            pointM.material = greenMat;
+            
+            // 3. Начало луча P1 (синяя)
+            const pointP1 = BABYLON.MeshBuilder.CreateSphere("pointP1", { diameter: 0.2 }, scene);
+            pointP1.position = P1;
+            const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
+            blueMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
+            pointP1.material = blueMat;
+            
+            // 4. Точка P2 (синяя)
+            const pointP2 = BABYLON.MeshBuilder.CreateSphere("pointP2", { diameter: 0.2 }, scene);
+            pointP2.position = P2;
+            pointP2.material = blueMat;
+            
+            // 5. Вычисляем ближайшую точку на луче
             const P1P2_x = P2.x - P1.x;
             const P1P2_y = P2.y - P1.y;
             const P1M_x = M.x - P1.x;
             const P1M_y = M.y - P1.y;
-            
             const dotProduct = P1M_x * P1P2_x + P1M_y * P1P2_y;
             
+            let closestPoint;
             if (dotProduct < 0) {
-                return P1.clone();
+                closestPoint = P1; // Перпендикуляр не падает на луч
             } else {
                 const t = dotProduct / (P1P2_x * P1P2_x + P1P2_y * P1P2_y);
-                return new BABYLON.Vector3(
+                closestPoint = new BABYLON.Vector3(
                     P1.x + t * P1P2_x,
                     P1.y + t * P1P2_y,
                     0
                 );
             }
+            
+            // 6. Линия от M до ближайшей точки (желтая)
+            const distanceLine = BABYLON.MeshBuilder.CreateLines("distanceLine", {
+                points: [M, closestPoint]
+            }, scene);
+            distanceLine.color = new BABYLON.Color3(1, 1, 0);
+            
+            // 7. Ближайшая точка на луче (желтая)
+            const closestPointMesh = BABYLON.MeshBuilder.CreateSphere("closest", { diameter: 0.15 }, scene);
+            closestPointMesh.position = closestPoint;
+            const yellowMat = new BABYLON.StandardMaterial("yellowMat", scene);
+            yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
+            closestPointMesh.material = yellowMat;
+            
+            // Подписи
+            addText(scene, "M", M.x + 0.2, M.y + 0.2);
+            addText(scene, "P₁", P1.x - 0.3, P1.y - 0.3);
+            addText(scene, "P₂", P2.x + 0.2, P2.y - 0.3);
+            addText(scene, "луч", 4, 0.3);
         }
-
-        // Вычисляет положение на прямой (параметр t проекции)
-        function calculateLinePosition(M, P1, P2) {
-            const P1P2_x = P2.x - P1.x;
-            const P1P2_y = P2.y - P1.y;
-            const P1M_x = M.x - P1.x;
-            const P1M_y = M.y - P1.y;
-            
-            const dotProduct = P1M_x * P1P2_x + P1M_y * P1P2_y;
-            const P1P2_length_sq = P1P2_x * P1P2_x + P1P2_y * P1P2_y;
-            
-            return dotProduct / P1P2_length_sq;
+        
+        // Функция для добавления текста (упрощённо)
+        function addText(scene, text, x, y) {
+            // В реальном проекте лучше использовать BABYLON.GUI
+            const plane = BABYLON.MeshBuilder.CreatePlane("text_" + text, { size: 0.5 }, scene);
+            plane.position = new BABYLON.Vector3(x, y, 0);
         }
-
-        function resetToDefault() {
-            // Сбрасываем слайдеры к начальным значениям
-            document.getElementById('p1XSlider').value = -3;
-            document.getElementById('p1YSlider').value = 0;
-            document.getElementById('rayAngleSlider').value = 0;
-            document.getElementById('pointMXSlider').value = 1;
-            document.getElementById('pointMYSlider').value = 2;
-            
-            // Обновляем отображение значений
-            document.getElementById('p1XValue').textContent = '-3.0';
-            document.getElementById('p1YValue').textContent = '0.0';
-            document.getElementById('rayAngleValue').textContent = '0°';
-            document.getElementById('pointMXValue').textContent = '1.0';
-            document.getElementById('pointMYValue').textContent = '2.0';
-            
-            updateFromSliders();
-        }
-
-        function randomizePoints() {
-            // Случайные значения для демонстрации
-            document.getElementById('p1XSlider').value = (Math.random() * 10 - 5).toFixed(1);
-            document.getElementById('p1YSlider').value = (Math.random() * 6 - 3).toFixed(1);
-            document.getElementById('rayAngleSlider').value = Math.floor(Math.random() * 360);
-            document.getElementById('pointMXSlider').value = (Math.random() * 10 - 5).toFixed(1);
-            document.getElementById('pointMYSlider').value = (Math.random() * 10 - 5).toFixed(1);
-            
-            updateFromSliders();
-        }
-
-        // Инициализация при загрузке
-        window.addEventListener('DOMContentLoaded', function() {
-            // Устанавливаем начальные значения
-            pointP1 = new BABYLON.Vector3(-3, 0, 0);
-            pointM = new BABYLON.Vector3(1, 2, 0);
-            pointP2 = new BABYLON.Vector3(3, 0, 0);
-            
-            init();
+        
+        const scene = createScene();
+        
+        engine.runRenderLoop(() => {
+            scene.render();
+        });
+        
+        window.addEventListener("resize", () => {
+            engine.resize();
         });
     </script>
 </body>
