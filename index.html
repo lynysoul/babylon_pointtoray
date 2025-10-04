@@ -34,146 +34,191 @@
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         
+        // Глобальные переменные для управления
+        let pointM, pointP1, pointP2;
+        let pointMMesh, pointP1Mesh, pointP2Mesh, rayLine, distanceLine, closestPointMesh;
+        let isDragging = false;
+        let draggedMesh = null;
+        
         function createScene() {
             const scene = new BABYLON.Scene(engine);
             
-            // Камера для 2D вида (смотрим сверху на плоскость XY)
+            // Камера для 2D вида
             const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 15, 
                 new BABYLON.Vector3(0, 0, 0), scene);
             camera.attachControl(canvas, true);
-            
-            // Фиксируем камеру для 2D (опционально)
             camera.inputs.attached.pointers.angularSensibility = 100000;
             
             // Свет
             new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 0, -1), scene);
             
-            // Создаем 2D визуализацию
-            create2DDistanceVisualization(scene);
+            // Создаем начальные точки
+            pointP1 = new BABYLON.Vector3(-3, 0, 0);
+            pointP2 = new BABYLON.Vector3(3, 0, 0);
+            pointM = new BABYLON.Vector3(1, 2, 0);
+            
+            // Создаем визуализацию
+            createVisualization(scene);
+            
+            // Настраиваем перетаскивание
+            setupDragAndDrop(scene, camera);
             
             return scene;
         }
         
-        // 2D версия алгоритма (работает с Vector3 но в плоскости Z=0)
+        function createVisualization(scene) {
+            // Удаляем старые объекты если есть
+            if (rayLine) rayLine.dispose();
+            if (distanceLine) distanceLine.dispose();
+            if (closestPointMesh) closestPointMesh.dispose();
+            
+            // Вычисляем расстояние
+            const distance = distanceToRay2D(pointM, pointP1, pointP2);
+            document.getElementById('distanceValue').textContent = distance.toFixed(2);
+            
+            // Создаем или обновляем точку M (зеленая)
+            if (!pointMMesh) {
+                pointMMesh = BABYLON.MeshBuilder.CreateSphere("pointM", { diameter: 0.3 }, scene);
+                const greenMat = new BABYLON.StandardMaterial("greenMat", scene);
+                greenMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
+                pointMMesh.material = greenMat;
+            }
+            pointMMesh.position = pointM.clone();
+            
+            // Создаем или обновляем точку P1 (синяя)
+            if (!pointP1Mesh) {
+                pointP1Mesh = BABYLON.MeshBuilder.CreateSphere("pointP1", { diameter: 0.3 }, scene);
+                const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
+                blueMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
+                pointP1Mesh.material = blueMat;
+            }
+            pointP1Mesh.position = pointP1.clone();
+            
+            // Создаем или обновляем точку P2 (синяя)
+            if (!pointP2Mesh) {
+                pointP2Mesh = BABYLON.MeshBuilder.CreateSphere("pointP2", { diameter: 0.3 }, scene);
+                pointP2Mesh.material = pointP1Mesh.material;
+            }
+            pointP2Mesh.position = pointP2.clone();
+            
+            // Создаем луч (красная линия от P1 через P2)
+            const rayPoints = [
+                pointP1,
+                pointP2,
+                new BABYLON.Vector3(
+                    pointP1.x + (pointP2.x - pointP1.x) * 2,
+                    pointP1.y + (pointP2.y - pointP1.y) * 2,
+                    0
+                )
+            ];
+            rayLine = BABYLON.MeshBuilder.CreateLines("ray", { points: rayPoints }, scene);
+            rayLine.color = new BABYLON.Color3(1, 0, 0);
+            
+            // Вычисляем ближайшую точку на луче
+            const closestPoint = findClosestPointOnRay(pointM, pointP1, pointP2);
+            
+            // Линия расстояния (желтая)
+            distanceLine = BABYLON.MeshBuilder.CreateLines("distanceLine", {
+                points: [pointM, closestPoint]
+            }, scene);
+            distanceLine.color = new BABYLON.Color3(1, 1, 0);
+            
+            // Ближайшая точка (желтая)
+            closestPointMesh = BABYLON.MeshBuilder.CreateSphere("closest", { diameter: 0.2 }, scene);
+            closestPointMesh.position = closestPoint;
+            const yellowMat = new BABYLON.StandardMaterial("yellowMat", scene);
+            yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
+            closestPointMesh.material = yellowMat;
+        }
+        
+        function setupDragAndDrop(scene, camera) {
+            // Настраиваем перетаскивание для точек
+            scene.onPointerDown = function(evt, pickResult) {
+                if (pickResult.hit) {
+                    const mesh = pickResult.pickedMesh;
+                    // Проверяем, что кликнули на одну из наших точек
+                    if (mesh === pointMMesh || mesh === pointP1Mesh || mesh === pointP2Mesh) {
+                        isDragging = true;
+                        draggedMesh = mesh;
+                    }
+                }
+            };
+            
+            scene.onPointerMove = function(evt) {
+                if (isDragging && draggedMesh) {
+                    // Получаем позицию курсора в мировых координатах
+                    const pickResult = scene.pick(scene.pointerX, scene.pointerY);
+                    if (pickResult.hit) {
+                        const newPosition = pickResult.pickedPoint;
+                        
+                        // Ограничиваем движение плоскостью Z=0
+                        newPosition.z = 0;
+                        
+                        // Обновляем позицию перетаскиваемой точки
+                        if (draggedMesh === pointMMesh) {
+                            pointM.copyFrom(newPosition);
+                        } else if (draggedMesh === pointP1Mesh) {
+                            pointP1.copyFrom(newPosition);
+                        } else if (draggedMesh === pointP2Mesh) {
+                            pointP2.copyFrom(newPosition);
+                        }
+                        
+                        // Обновляем визуализацию
+                        createVisualization(scene);
+                    }
+                }
+            };
+            
+            scene.onPointerUp = function() {
+                isDragging = false;
+                draggedMesh = null;
+            };
+        }
+        
+        // 2D алгоритм расстояния от точки до луча
         function distanceToRay2D(M, P1, P2) {
-            // Вектор луча P1P2
             const P1P2_x = P2.x - P1.x;
             const P1P2_y = P2.y - P1.y;
             
-            // Вектор от P1 до M
             const P1M_x = M.x - P1.x;
             const P1M_y = M.y - P1.y;
             
-            // Скалярное произведение (P1M · P1P2)
             const dotProduct = P1M_x * P1P2_x + P1M_y * P1P2_y;
             
-            // Проверка по алгоритму со слайда
             if (dotProduct < 0) {
-                // Перпендикуляр не падает на луч - расстояние до начала луча
                 return Math.sqrt(P1M_x * P1M_x + P1M_y * P1M_y);
             } else {
-                // Перпендикуляр падает на луч
-                // Длина вектора P1P2 в квадрате
                 const P1P2_length_sq = P1P2_x * P1P2_x + P1P2_y * P1P2_y;
-                
-                // Параметр проекции
                 const t = dotProduct / P1P2_length_sq;
                 
-                // Точка проекции
                 const proj_x = P1.x + t * P1P2_x;
                 const proj_y = P1.y + t * P1P2_y;
                 
-                // Расстояние от M до точки проекции
                 const dx = M.x - proj_x;
                 const dy = M.y - proj_y;
                 return Math.sqrt(dx * dx + dy * dy);
             }
         }
         
-        function create2DDistanceVisualization(scene) {
-            // Точки как на слайде (все Z = 0)
-            const P1 = new BABYLON.Vector3(-3, 0, 0);  // Начало луча
-            const P2 = new BABYLON.Vector3(3, 0, 0);   // Направление луча
-            const M = new BABYLON.Vector3(1, 2, 0);    // Точка M
-            
-            // Вычисляем расстояние
-            const distance = distanceToRay2D(M, P1, P2);
-            document.getElementById('distanceValue').textContent = distance.toFixed(2);
-            
-            // Визуализация в 2D
-            
-            // 1. Луч (красная линия от P1 через P2)
-            const rayPoints = [
-                P1,
-                P2,
-                new BABYLON.Vector3(5, 0, 0) // Продолжение луча
-            ];
-            const rayLine = BABYLON.MeshBuilder.CreateLines("ray", { points: rayPoints }, scene);
-            rayLine.color = new BABYLON.Color3(1, 0, 0);
-            
-            // 2. Точка M (зеленая)
-            const pointM = BABYLON.MeshBuilder.CreateSphere("pointM", { diameter: 0.2 }, scene);
-            pointM.position = M;
-            const greenMat = new BABYLON.StandardMaterial("greenMat", scene);
-            greenMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
-            pointM.material = greenMat;
-            
-            // 3. Начало луча P1 (синяя)
-            const pointP1 = BABYLON.MeshBuilder.CreateSphere("pointP1", { diameter: 0.2 }, scene);
-            pointP1.position = P1;
-            const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
-            blueMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
-            pointP1.material = blueMat;
-            
-            // 4. Точка P2 (синяя)
-            const pointP2 = BABYLON.MeshBuilder.CreateSphere("pointP2", { diameter: 0.2 }, scene);
-            pointP2.position = P2;
-            pointP2.material = blueMat;
-            
-            // 5. Вычисляем ближайшую точку на луче
+        // Находит ближайшую точку на луче
+        function findClosestPointOnRay(M, P1, P2) {
             const P1P2_x = P2.x - P1.x;
             const P1P2_y = P2.y - P1.y;
             const P1M_x = M.x - P1.x;
             const P1M_y = M.y - P1.y;
+            
             const dotProduct = P1M_x * P1P2_x + P1M_y * P1P2_y;
             
-            let closestPoint;
             if (dotProduct < 0) {
-                closestPoint = P1; // Перпендикуляр не падает на луч
+                return P1.clone();
             } else {
                 const t = dotProduct / (P1P2_x * P1P2_x + P1P2_y * P1P2_y);
-                closestPoint = new BABYLON.Vector3(
+                return new BABYLON.Vector3(
                     P1.x + t * P1P2_x,
                     P1.y + t * P1P2_y,
                     0
                 );
             }
-            
-            // 6. Линия от M до ближайшей точки (желтая)
-            const distanceLine = BABYLON.MeshBuilder.CreateLines("distanceLine", {
-                points: [M, closestPoint]
-            }, scene);
-            distanceLine.color = new BABYLON.Color3(1, 1, 0);
-            
-            // 7. Ближайшая точка на луче (желтая)
-            const closestPointMesh = BABYLON.MeshBuilder.CreateSphere("closest", { diameter: 0.15 }, scene);
-            closestPointMesh.position = closestPoint;
-            const yellowMat = new BABYLON.StandardMaterial("yellowMat", scene);
-            yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
-            closestPointMesh.material = yellowMat;
-            
-            // Подписи
-            addText(scene, "M", M.x + 0.2, M.y + 0.2);
-            addText(scene, "P₁", P1.x - 0.3, P1.y - 0.3);
-            addText(scene, "P₂", P2.x + 0.2, P2.y - 0.3);
-            addText(scene, "луч", 4, 0.3);
-        }
-        
-        // Функция для добавления текста (упрощённо)
-        function addText(scene, text, x, y) {
-            // В реальном проекте лучше использовать BABYLON.GUI
-            const plane = BABYLON.MeshBuilder.CreatePlane("text_" + text, { size: 0.5 }, scene);
-            plane.position = new BABYLON.Vector3(x, y, 0);
         }
         
         const scene = createScene();
