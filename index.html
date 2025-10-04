@@ -155,7 +155,7 @@
             const distanceLine = BABYLON.MeshBuilder.CreateLines("distanceLine", {
                 points: [M, closestPoint]
             }, scene);
-            distanceLine.color = new BABYLON.Color3(1, 1, 0);
+            distanceLine.color = new BABYLON.Color3(228, 255, 1);
 
             // 7. Ближайшая точка на луче (желтая)
             const closestPointMesh = BABYLON.MeshBuilder.CreateSphere("closest", { diameter: 0.15 }, scene);
@@ -190,3 +190,4 @@
     </script>
 </body>
 </html>
+
