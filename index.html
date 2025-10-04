@@ -104,7 +104,7 @@
             
             // Создаем луч (красная линия от P1 через P2)
             const rayPoints = [
-                pointP1, pointP2,
+                pointP1,pointP2,
                 new BABYLON.Vector3(
                     pointP1.x + (pointP2.x - pointP1.x) * 2,
                     pointP1.y + (pointP2.y - pointP1.y) * 2,
@@ -130,7 +130,7 @@
             yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
             closestPointMesh.material = yellowMat;
             
-            // Создаем конус направления (фиолетовый)
+            // Создаем конус направления (фиолетовый) справа от P2
             createDirectionCone(scene);
         }
         
@@ -143,9 +143,6 @@
                 tessellation: 16
             }, scene);
             
-            // Позиционируем конус в точке P1
-            directionCone.position = pointP1.clone();
-            
             // Вычисляем направление от P1 к P2
             const direction = new BABYLON.Vector3(
                 pointP2.x - pointP1.x,
@@ -155,6 +152,14 @@
             
             // Нормализуем направление
             direction.normalize();
+            
+            // Позиционируем конус справа от точки P2
+            const coneOffset = 0.8; // расстояние от P2 до конуса
+            directionCone.position = new BABYLON.Vector3(
+                pointP2.x + direction.x * coneOffset,
+                pointP2.y + direction.y * coneOffset,
+                0
+            );
             
             // Вычисляем угол поворота конуса
             const angle = Math.atan2(direction.y, direction.x);
