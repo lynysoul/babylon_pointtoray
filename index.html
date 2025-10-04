@@ -10,6 +10,7 @@
             height: 100%;
             margin: 0;
             padding: 0;
+            font-family: Arial, sans-serif;
         }
         #renderCanvas {
             width: 100%;
@@ -20,62 +21,282 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(255,255,255,0.8);
-            padding: 10px;
-            border-radius: 5px;
+            background: rgba(255,255,255,0.9);
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 250px;
         }
         .control-panel {
             position: absolute;
             top: 20px;
             right: 20px;
-            background: rgba(113, 108, 145, 0.8);
+            background: rgba(113, 108, 145, 0.95);
             padding: 20px;
             border-radius: 10px;
-            border: 7px solid rgb(113, 108, 145);
+            border: 3px solid rgb(113, 108, 145);
             min-width: 300px;
+            color: white;
+        }
+        .control-group {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+        }
+        .control-group h4 {
+            margin: 0 0 10px 0;
+            color: #fff;
+        }
+        .input-row {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        .input-row label {
+            width: 30px;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .input-row input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .camera-control {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 0, 0, 0.5);
+            border: 2px solid red;
+            cursor: move;
+        }
+        .reset-camera {
+            position: absolute;
+            bottom: 50px;
+            left: 20px;
         }
     </style>
 </head>
 <body>
     <canvas id="renderCanvas"></canvas>
-    <div id="info">Расстояние: <span id="distanceValue">0</span></div>
+    
+    <div id="info">
+        <h3>Расстояние от точки до луча</h3>
+        <p>Расстояние: <span id="distanceValue">0</span></p>
+        <p>Точка M: (<span id="pointMCoords">1, 2, 0</span>)</p>
+        <p>Луч: P₁(<span id="pointP1Coords">-3, 0, 0</span>)</p>
+        <p>Направление: (<span id="directionCoords">6, 0, 0</span>)</p>
+    </div>
+    
+    <div class="control-panel">
+        <h3>🎯 Управление</h3>
+        
+        <div class="control-group">
+            <h4>🔵 Параметры луча</h4>
+            <div class="input-row">
+                <label>P1 X:</label>
+                <input type="number" id="p1_x" value="-3" step="0.1">
+                <label>Y:</label>
+                <input type="number" id="p1_y" value="0" step="0.1">
+                <label>Z:</label>
+                <input type="number" id="p1_z" value="0" step="0.1">
+            </div>
+            <div class="input-row">
+                <label>Напр X:</label>
+                <input type="number" id="dir_x" value="1" step="0.1">
+                <label>Y:</label>
+                <input type="number" id="dir_y" value="0" step="0.1">
+                <label>Z:</label>
+                <input type="number" id="dir_z" value="0" step="0.1">
+            </div>
+            <button onclick="updateRay()">Обновить луч</button>
+        </div>
+        
+        <div class="control-group">
+            <h4>🟢 Параметры точки M</h4>
+            <div class="input-row">
+                <label>X:</label>
+                <input type="number" id="m_x" value="1" step="0.1">
+                <label>Y:</label>
+                <input type="number" id="m_y" value="2" step="0.1">
+                <label>Z:</label>
+                <input type="number" id="m_z" value="0" step="0.1">
+            </div>
+            <button onclick="updatePointM()">Обновить точку</button>
+        </div>
+        
+        <div class="control-group">
+            <h4>📐 Действия</h4>
+            <button onclick="dropPerpendicular()">Опустить перпендикуляр</button>
+        </div>
+    </div>
 
-    <div class="control-panel">Окно управления (пока пустое)</div>
+    <!-- Область управления камерой -->
+    <div class="camera-control" id="cameraControl"></div>
+    <button class="reset-camera" onclick="resetCamera()">🔄 Сброс камеры</button>
     
     <script>
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         
-        // Глобальные переменные для управления
+        // Глобальные переменные
         let pointM, pointP1, pointP2;
         let pointMMesh, pointP1Mesh, pointP2Mesh, rayLine, distanceLine, closestPointMesh, directionCone;
         let isDragging = false;
         let draggedMesh = null;
-        
+        let camera;
+        let isCameraDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let initialCameraPosition = new BABYLON.Vector3(0, 0, 15);
+        let initialCameraRotation = new BABYLON.Vector3(-Math.PI / 2, Math.PI / 2, 0);
+
         function createScene() {
             const scene = new BABYLON.Scene(engine);
             
             // Камера для 2D вида
-            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 15, 
+            camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 15, 
                 new BABYLON.Vector3(0, 0, 0), scene);
             camera.attachControl(canvas, true);
             camera.inputs.attached.pointers.angularSensibility = 100000;
+            
+            // Сохраняем начальную позицию камеры
+            initialCameraPosition = camera.position.clone();
+            initialCameraRotation = new BABYLON.Vector3(
+                camera.alpha, camera.beta, camera.radius
+            );
             
             // Свет
             new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 0, -1), scene);
             
             // Создаем начальные точки
             pointP1 = new BABYLON.Vector3(-3, 0, 0);
-            pointP2 = new BABYLON.Vector3(3, 0, 0);
+            pointP2 = new BABYLON.Vector3(3, 0, 0); // P2 вычисляется из P1 + направление
             pointM = new BABYLON.Vector3(1, 2, 0);
+            
+            // Настраиваем управление камерой
+            setupCameraControl();
             
             // Создаем визуализацию
             createVisualization(scene);
             
-            // Настраиваем перетаскивание
+            // Настраиваем перетаскивание точек
             setupDragAndDrop(scene, camera);
             
             return scene;
+        }
+        
+        function setupCameraControl() {
+            const cameraControl = document.getElementById('cameraControl');
+            
+            cameraControl.addEventListener('mousedown', function(e) {
+                isCameraDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (isCameraDragging) {
+                    const deltaX = e.clientX - lastMouseX;
+                    const deltaY = e.clientY - lastMouseY;
+                    
+                    // Двигаем камеру
+                    camera.alpha -= deltaX * 0.01;
+                    camera.beta -= deltaY * 0.01;
+                    
+                    // Ограничиваем угол beta чтобы не переворачивать камеру
+                    camera.beta = Math.max(0.1, Math.min(Math.PI - 0.1, camera.beta));
+                    
+                    lastMouseX = e.clientX;
+                    lastMouseY = e.clientY;
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isCameraDragging = false;
+            });
+        }
+        
+        function resetCamera() {
+            camera.alpha = initialCameraRotation.x;
+            camera.beta = initialCameraRotation.y;
+            camera.radius = initialCameraRotation.z;
+            camera.position = initialCameraPosition.clone();
+        }
+        
+        function updateRay() {
+            const p1_x = parseFloat(document.getElementById('p1_x').value);
+            const p1_y = parseFloat(document.getElementById('p1_y').value);
+            const p1_z = parseFloat(document.getElementById('p1_z').value);
+            const dir_x = parseFloat(document.getElementById('dir_x').value);
+            const dir_y = parseFloat(document.getElementById('dir_y').value);
+            const dir_z = parseFloat(document.getElementById('dir_z').value);
+            
+            pointP1 = new BABYLON.Vector3(p1_x, p1_y, p1_z);
+            // P2 = P1 + направление * 6 (для визуализации)
+            pointP2 = new BABYLON.Vector3(
+                p1_x + dir_x * 6,
+                p1_y + dir_y * 6, 
+                p1_z + dir_z * 6
+            );
+            
+            createVisualization(scene);
+            updateInfoPanel();
+        }
+        
+        function updatePointM() {
+            const m_x = parseFloat(document.getElementById('m_x').value);
+            const m_y = parseFloat(document.getElementById('m_y').value);
+            const m_z = parseFloat(document.getElementById('m_z').value);
+            
+            pointM = new BABYLON.Vector3(m_x, m_y, m_z);
+            createVisualization(scene);
+            updateInfoPanel();
+        }
+        
+        function dropPerpendicular() {
+            // Находим ближайшую точку на луче
+            const closestPoint = findClosestPointOnRay(pointM, pointP1, pointP2);
+            
+            // Перемещаем точку M к основанию перпендикуляра
+            pointM.copyFrom(closestPoint);
+            
+            // Обновляем поле ввода
+            document.getElementById('m_x').value = pointM.x.toFixed(1);
+            document.getElementById('m_y').value = pointM.y.toFixed(1);
+            document.getElementById('m_z').value = pointM.z.toFixed(1);
+            
+            createVisualization(scene);
+            updateInfoPanel();
+        }
+        
+        function updateInfoPanel() {
+            document.getElementById('pointMCoords').textContent = 
+                `${pointM.x.toFixed(1)}, ${pointM.y.toFixed(1)}, ${pointM.z.toFixed(1)}`;
+            document.getElementById('pointP1Coords').textContent = 
+                `${pointP1.x.toFixed(1)}, ${pointP1.y.toFixed(1)}, ${pointP1.z.toFixed(1)}`;
+            
+            const direction = pointP2.subtract(pointP1);
+            document.getElementById('directionCoords').textContent = 
+                `${direction.x.toFixed(1)}, ${direction.y.toFixed(1)}, ${direction.z.toFixed(1)}`;
         }
         
         function createVisualization(scene) {
@@ -116,11 +337,12 @@
             
             // Создаем луч (красная линия от P1 через P2)
             const rayPoints = [
-                pointP1,pointP2,
+                pointP1,
+                pointP2,
                 new BABYLON.Vector3(
                     pointP1.x + (pointP2.x - pointP1.x) * 2,
                     pointP1.y + (pointP2.y - pointP1.y) * 2,
-                    0
+                    pointP1.z + (pointP2.z - pointP1.z) * 2
                 )
             ];
             rayLine = BABYLON.MeshBuilder.CreateLines("ray", { points: rayPoints }, scene);
@@ -142,12 +364,11 @@
             yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
             closestPointMesh.material = yellowMat;
             
-            // Создаем конус направления (фиолетовый) справа от P2
+            // Создаем конус направления
             createDirectionCone(scene);
         }
         
         function createDirectionCone(scene) {
-            // Создаем конус для отображения направления луча
             directionCone = BABYLON.MeshBuilder.CreateCylinder("directionCone", {
                 height: 0.8,
                 diameterTop: 0,
@@ -155,43 +376,28 @@
                 tessellation: 7
             }, scene);
             
-            // Вычисляем направление от P1 к P2
-            const direction = new BABYLON.Vector3(
-                pointP2.x - pointP1.x,
-                pointP2.y - pointP1.y,
-                0
-            );
+            const direction = pointP2.subtract(pointP1).normalize();
+            const coneOffset = 0.5;
             
-            // Нормализуем направление
-            direction.normalize();
-            
-            // Позиционируем конус справа от точки P2
-            const coneOffset = 5; // расстояние от P2 до конуса
             directionCone.position = new BABYLON.Vector3(
                 pointP2.x + direction.x * coneOffset,
                 pointP2.y + direction.y * coneOffset,
-                0
+                pointP2.z + direction.z * coneOffset
             );
             
-            // Вычисляем угол поворота конуса
+            // Вычисляем поворот для 3D
             const angle = Math.atan2(direction.y, direction.x);
+            directionCone.rotation.y = angle + Math.PI / 2;
             
-            // Поворачиваем конус в направлении луча
-            // В 2D пространстве поворачиваем вокруг оси Z
-            directionCone.rotation.y = angle + Math.PI / 2; // +90 градусов чтобы конус смотрел острием вперед
-            
-            // Фиолетовый материал для конуса
             const purpleMat = new BABYLON.StandardMaterial("purpleMat", scene);
             purpleMat.diffuseColor = new BABYLON.Color3(0.5, 0, 0.5);
             directionCone.material = purpleMat;
         }
         
         function setupDragAndDrop(scene, camera) {
-            // Настраиваем перетаскивание для точек
             scene.onPointerDown = function(evt, pickResult) {
                 if (pickResult.hit) {
                     const mesh = pickResult.pickedMesh;
-                    // Проверяем, что кликнули на одну из наших точек
                     if (mesh === pointMMesh || mesh === pointP1Mesh || mesh === pointP2Mesh) {
                         isDragging = true;
                         draggedMesh = mesh;
@@ -201,25 +407,32 @@
             
             scene.onPointerMove = function(evt) {
                 if (isDragging && draggedMesh) {
-                    // Получаем позицию курсора в мировых координатах
                     const pickResult = scene.pick(scene.pointerX, scene.pointerY);
                     if (pickResult.hit) {
                         const newPosition = pickResult.pickedPoint;
                         
-                        // Ограничиваем движение плоскостью Z=0
-                        newPosition.z = 0;
-                        
-                        // Обновляем позицию перетаскиваемой точки
                         if (draggedMesh === pointMMesh) {
                             pointM.copyFrom(newPosition);
+                            // Обновляем поля ввода
+                            document.getElementById('m_x').value = pointM.x.toFixed(1);
+                            document.getElementById('m_y').value = pointM.y.toFixed(1);
+                            document.getElementById('m_z').value = pointM.z.toFixed(1);
                         } else if (draggedMesh === pointP1Mesh) {
                             pointP1.copyFrom(newPosition);
+                            document.getElementById('p1_x').value = pointP1.x.toFixed(1);
+                            document.getElementById('p1_y').value = pointP1.y.toFixed(1);
+                            document.getElementById('p1_z').value = pointP1.z.toFixed(1);
                         } else if (draggedMesh === pointP2Mesh) {
                             pointP2.copyFrom(newPosition);
+                            // Обновляем направление
+                            const direction = pointP2.subtract(pointP1).normalize();
+                            document.getElementById('dir_x').value = direction.x.toFixed(1);
+                            document.getElementById('dir_y').value = direction.y.toFixed(1);
+                            document.getElementById('dir_z').value = direction.z.toFixed(1);
                         }
                         
-                        // Обновляем визуализацию
                         createVisualization(scene);
+                        updateInfoPanel();
                     }
                 }
             };
@@ -230,49 +443,35 @@
             };
         }
         
-        // 2D алгоритм расстояния от точки до луча
+        // 2D алгоритм расстояния от точки до луча (работает и в 3D)
         function distanceToRay2D(M, P1, P2) {
-            const P1P2_x = P2.x - P1.x;
-            const P1P2_y = P2.y - P1.y;
+            const P1P2 = P2.subtract(P1);
+            const P1M = M.subtract(P1);
             
-            const P1M_x = M.x - P1.x;
-            const P1M_y = M.y - P1.y;
-            
-            const dotProduct = P1M_x * P1P2_x + P1M_y * P1P2_y;
+            const dotProduct = BABYLON.Vector3.Dot(P1M, P1P2);
             
             if (dotProduct < 0) {
-                return Math.sqrt(P1M_x * P1M_x + P1M_y * P1M_y);
+                return BABYLON.Vector3.Distance(M, P1);
             } else {
-                const P1P2_length_sq = P1P2_x * P1P2_x + P1P2_y * P1P2_y;
+                const P1P2_length_sq = P1P2.lengthSquared();
                 const t = dotProduct / P1P2_length_sq;
                 
-                const proj_x = P1.x + t * P1P2_x;
-                const proj_y = P1.y + t * P1P2_y;
-                
-                const dx = M.x - proj_x;
-                const dy = M.y - proj_y;
-                return Math.sqrt(dx * dx + dy * dy);
+                const projection = P1.add(P1P2.scale(t));
+                return BABYLON.Vector3.Distance(M, projection);
             }
         }
         
-        // Находит ближайшую точку на луче
         function findClosestPointOnRay(M, P1, P2) {
-            const P1P2_x = P2.x - P1.x;
-            const P1P2_y = P2.y - P1.y;
-            const P1M_x = M.x - P1.x;
-            const P1M_y = M.y - P1.y;
+            const P1P2 = P2.subtract(P1);
+            const P1M = M.subtract(P1);
             
-            const dotProduct = P1M_x * P1P2_x + P1M_y * P1P2_y;
+            const dotProduct = BABYLON.Vector3.Dot(P1M, P1P2);
             
             if (dotProduct < 0) {
                 return P1.clone();
             } else {
-                const t = dotProduct / (P1P2_x * P1P2_x + P1P2_y * P1P2_y);
-                return new BABYLON.Vector3(
-                    P1.x + t * P1P2_x,
-                    P1.y + t * P1P2_y,
-                    0
-                );
+                const t = dotProduct / P1P2.lengthSquared();
+                return P1.add(P1P2.scale(t));
             }
         }
         
@@ -285,16 +484,9 @@
         window.addEventListener("resize", () => {
             engine.resize();
         });
+        
+        // Инициализация полей ввода
+        updateInfoPanel();
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
