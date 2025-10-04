@@ -24,15 +24,6 @@
             padding: 10px;
             border-radius: 5px;
         }
-        #control-panel {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 10px;
-            min-width: 300px;
-        }
     </style>
 </head>
 <body>
@@ -45,7 +36,7 @@
         
         // Глобальные переменные для управления
         let pointM, pointP1, pointP2;
-        let pointMMesh, pointP1Mesh, pointP2Mesh, rayLine, distanceLine, closestPointMesh;
+        let pointMMesh, pointP1Mesh, pointP2Mesh, rayLine, distanceLine, closestPointMesh, directionCone;
         let isDragging = false;
         let draggedMesh = null;
         
@@ -75,12 +66,18 @@
             return scene;
         }
         
-        function createVisualization(scene) {   
+        function createVisualization(scene) {
+            // Удаляем старые объекты если есть
+            if (rayLine) rayLine.dispose();
+            if (distanceLine) distanceLine.dispose();
+            if (closestPointMesh) closestPointMesh.dispose();
+            if (directionCone) directionCone.dispose();
+            
             // Вычисляем расстояние
             const distance = distanceToRay2D(pointM, pointP1, pointP2);
             document.getElementById('distanceValue').textContent = distance.toFixed(2);
             
-            // создание точки м
+            // Создаем или обновляем точку M (зеленая)
             if (!pointMMesh) {
                 pointMMesh = BABYLON.MeshBuilder.CreateSphere("pointM", { diameter: 0.3 }, scene);
                 const greenMat = new BABYLON.StandardMaterial("greenMat", scene);
@@ -89,7 +86,7 @@
             }
             pointMMesh.position = pointM.clone();
             
-            // создание точки р1
+            // Создаем или обновляем точку P1 (синяя)
             if (!pointP1Mesh) {
                 pointP1Mesh = BABYLON.MeshBuilder.CreateSphere("pointP1", { diameter: 0.3 }, scene);
                 const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
@@ -98,17 +95,16 @@
             }
             pointP1Mesh.position = pointP1.clone();
             
-            // создание точки р2
+            // Создаем или обновляем точку P2 (синяя)
             if (!pointP2Mesh) {
                 pointP2Mesh = BABYLON.MeshBuilder.CreateSphere("pointP2", { diameter: 0.3 }, scene);
                 pointP2Mesh.material = pointP1Mesh.material;
             }
             pointP2Mesh.position = pointP2.clone();
             
-            // создание луча
+            // Создаем луч (красная линия от P1 через P2)
             const rayPoints = [
-                pointP1,
-                pointP2,
+                pointP1, pointP2,
                 new BABYLON.Vector3(
                     pointP1.x + (pointP2.x - pointP1.x) * 2,
                     pointP1.y + (pointP2.y - pointP1.y) * 2,
@@ -133,6 +129,44 @@
             const yellowMat = new BABYLON.StandardMaterial("yellowMat", scene);
             yellowMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
             closestPointMesh.material = yellowMat;
+            
+            // Создаем конус направления (фиолетовый)
+            createDirectionCone(scene);
+        }
+        
+        function createDirectionCone(scene) {
+            // Создаем конус для отображения направления луча
+            directionCone = BABYLON.MeshBuilder.CreateCylinder("directionCone", {
+                height: 0.8,
+                diameterTop: 0,
+                diameterBottom: 0.5,
+                tessellation: 16
+            }, scene);
+            
+            // Позиционируем конус в точке P1
+            directionCone.position = pointP1.clone();
+            
+            // Вычисляем направление от P1 к P2
+            const direction = new BABYLON.Vector3(
+                pointP2.x - pointP1.x,
+                pointP2.y - pointP1.y,
+                0
+            );
+            
+            // Нормализуем направление
+            direction.normalize();
+            
+            // Вычисляем угол поворота конуса
+            const angle = Math.atan2(direction.y, direction.x);
+            
+            // Поворачиваем конус в направлении луча
+            // В 2D пространстве поворачиваем вокруг оси Z
+            directionCone.rotation.z = angle + Math.PI / 2; // +90 градусов чтобы конус смотрел острием вперед
+            
+            // Фиолетовый материал для конуса
+            const purpleMat = new BABYLON.StandardMaterial("purpleMat", scene);
+            purpleMat.diffuseColor = new BABYLON.Color3(0.5, 0, 0.5);
+            directionCone.material = purpleMat;
         }
         
         function setupDragAndDrop(scene, camera) {
@@ -237,4 +271,3 @@
     </script>
 </body>
 </html>
-
