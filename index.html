@@ -154,7 +154,7 @@
             direction.normalize();
             
             // Позиционируем конус справа от точки P2
-            const coneOffset = 0.8; // расстояние от P2 до конуса
+            const coneOffset = 5; // расстояние от P2 до конуса
             directionCone.position = new BABYLON.Vector3(
                 pointP2.x + direction.x * coneOffset,
                 pointP2.y + direction.y * coneOffset,
@@ -162,7 +162,7 @@
             );
             
             // Вычисляем угол поворота конуса
-            const angle = Math.atan2(direction.y, direction.x);
+            const angle = Math.atan2(direction.x, direction.y);
             
             // Поворачиваем конус в направлении луча
             // В 2D пространстве поворачиваем вокруг оси Z
@@ -276,4 +276,5 @@
     </script>
 </body>
 </html>
+
 
