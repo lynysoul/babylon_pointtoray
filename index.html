@@ -24,6 +24,15 @@
             padding: 10px;
             border-radius: 5px;
         }
+        #control-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            min-width: 300px;
+        }
     </style>
 </head>
 <body>
@@ -66,17 +75,12 @@
             return scene;
         }
         
-        function createVisualization(scene) {
-            // Удаляем старые объекты если есть
-            if (rayLine) rayLine.dispose();
-            if (distanceLine) distanceLine.dispose();
-            if (closestPointMesh) closestPointMesh.dispose();
-            
+        function createVisualization(scene) {   
             // Вычисляем расстояние
             const distance = distanceToRay2D(pointM, pointP1, pointP2);
             document.getElementById('distanceValue').textContent = distance.toFixed(2);
             
-            // Создаем или обновляем точку M (зеленая)
+            // создание точки м
             if (!pointMMesh) {
                 pointMMesh = BABYLON.MeshBuilder.CreateSphere("pointM", { diameter: 0.3 }, scene);
                 const greenMat = new BABYLON.StandardMaterial("greenMat", scene);
@@ -85,7 +89,7 @@
             }
             pointMMesh.position = pointM.clone();
             
-            // Создаем или обновляем точку P1 (синяя)
+            // создание точки р1
             if (!pointP1Mesh) {
                 pointP1Mesh = BABYLON.MeshBuilder.CreateSphere("pointP1", { diameter: 0.3 }, scene);
                 const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
@@ -94,14 +98,14 @@
             }
             pointP1Mesh.position = pointP1.clone();
             
-            // Создаем или обновляем точку P2 (синяя)
+            // создание точки р2
             if (!pointP2Mesh) {
                 pointP2Mesh = BABYLON.MeshBuilder.CreateSphere("pointP2", { diameter: 0.3 }, scene);
                 pointP2Mesh.material = pointP1Mesh.material;
             }
             pointP2Mesh.position = pointP2.clone();
             
-            // Создаем луч (красная линия от P1 через P2)
+            // создание луча
             const rayPoints = [
                 pointP1,
                 pointP2,
@@ -233,3 +237,4 @@
     </script>
 </body>
 </html>
+
