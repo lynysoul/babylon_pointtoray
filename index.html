@@ -271,6 +271,15 @@
             createVisualization(scene);
             updateInfoPanel();
         }
+
+        function axisSystem() {
+            var axes = new BABYLON.AxesViewer(scene, 3);
+            var grid = BABYLON.MeshBuilder.CreateGround("grid", {width:10, height:10, subdivisions:10}, scene);
+            grid.material = new BABYLON.StandardMaterial("gridMat", scene);
+            grid.material.wireframe = true;
+            grid.material.alpha = 0.3;
+        }
+
         
         function updatePointM() {
             const m_x = parseFloat(document.getElementById('m_x').value);
@@ -481,4 +490,5 @@
     </script>
 </body>
 </html>
+
 
